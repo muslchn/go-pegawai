@@ -4,15 +4,22 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/muslchn/go-pegawai/pegawai"
+	"go-pegawai/config"
+	"go-pegawai/pegawai"
 )
 
 func main() {
 	fmt.Println("🏢 APLIKASI MANAJEMEN DATA PEGAWAI 🏢")
 	fmt.Println("=====================================")
 
+	// Load configuration from environment variables
+	_, err := config.LoadConfig()
+	if err != nil {
+		log.Fatal("Failed to load configuration:", err)
+	}
+
 	// Initialize database
-	err := pegawai.InitDatabase()
+	err = pegawai.InitDatabase()
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
 	}

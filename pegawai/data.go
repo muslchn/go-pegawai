@@ -3,8 +3,11 @@ package pegawai
 import (
 	"fmt"
 	"log"
+	"time"
 
-	"gorm.io/driver/sqlite"
+	"go-pegawai/config"
+
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
@@ -42,14 +45,42 @@ func (p Pegawai) TampilkanInformasi() {
 // Database connection variable
 var DB *gorm.DB
 
-// InitDatabase initializes the SQLite database connection
+// InitDatabase initializes the MariaDB database connection
 func InitDatabase() error {
 	var err error
 
-	// Connect to SQLite database
-	DB, err = gorm.Open(sqlite.Open("pegawai.db"), &gorm.Config{})
+	// Load configuration
+	cfg := config.GetConfig()
+
+	// Build DSN (Data Source Name) for MariaDB
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		cfg.Database.Username,
+		cfg.Database.Password,
+		cfg.Database.Host,
+		cfg.Database.Port,
+		cfg.Database.Name,
+	)
+
+	// Connect to MariaDB database
+	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %v", err)
+		return fmt.Errorf("failed to connect to MariaDB database: %v", err)
+	}
+
+	// Get underlying sql.DB to configure connection pool
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying sql.DB: %v", err)
+	}
+
+	// Configure connection pool settings
+	sqlDB.SetMaxOpenConns(cfg.Database.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdleConns)
+	sqlDB.SetConnMaxLifetime(time.Duration(cfg.Database.ConnMaxLifetime) * time.Second)
+
+	// Test the connection
+	if err := sqlDB.Ping(); err != nil {
+		return fmt.Errorf("failed to ping database: %v", err)
 	}
 
 	// Auto migrate the schema
@@ -58,7 +89,9 @@ func InitDatabase() error {
 		return fmt.Errorf("failed to migrate database: %v", err)
 	}
 
-	log.Println("Database connected and migrated successfully")
+	log.Printf("MariaDB database connected successfully to %s:%d/%s",
+		cfg.Database.Host, cfg.Database.Port, cfg.Database.Name)
+	log.Println("Database schema migrated successfully")
 	return nil
 }
 
